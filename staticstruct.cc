@@ -1,5 +1,7 @@
 #include "staticstruct.hh"
 
+#include <string>
+
 namespace staticstruct {
 
 Error* TypeMismatchError(std::string expected_type, std::string actual_type) {
