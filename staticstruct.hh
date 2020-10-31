@@ -1,7 +1,8 @@
 //
-// Simple single-file statically typed struct/value serialization/deserialization
-// library supporting frequently used STL containers. Code is based on
-// StaticJSON: https://github.com/netheril96/StaticJSON
+// Simple single-file statically typed struct/value
+// serialization/deserialization library supporting frequently used STL
+// containers. Code is based on StaticJSON:
+// https://github.com/netheril96/StaticJSON
 //
 // MIT license
 //
@@ -13,8 +14,11 @@
 #pragma once
 
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <memory>
+#include <stack>
+#include <iostream> // dbg
 
 //
 // STL types
@@ -55,6 +59,7 @@ struct Error {
 
   std::string error_msg;
 
+  Error() : error_type(0) {}
   Error(int ty, std::string msg) : error_type(ty), error_msg(msg) {}
 };
 
@@ -65,6 +70,35 @@ Error* ArrayElementError(size_t n);
 Error* ArrayLengthMismatchError();
 Error* ObjectMemberError(std::string key);
 Error* DuplicateKeyError(std::string key);
+
+class ErrorStack {
+ private:
+  std::stack<Error> m_stack;
+
+  ErrorStack(const ErrorStack&);
+  ErrorStack& operator=(const ErrorStack&);
+
+ public:
+  // typedef error::internal::error_stack_const_iterator const_iterator;
+
+  explicit ErrorStack() {}
+
+  void push(Error& e) { m_stack.push(e); }
+
+  bool pop(Error* err) {
+    if (m_stack.size()) {
+      (*err) = m_stack.top();
+      m_stack.pop();
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  ~ErrorStack() {}
+
+  size_t size() const { return m_stack.size(); }
+};
 
 class IHandler {
  public:
@@ -87,6 +121,8 @@ class IHandler {
   virtual bool Int64(std::int64_t) = 0;
 
   virtual bool Uint64(std::uint64_t) = 0;
+
+  virtual bool Float(float) = 0;
 
   virtual bool Double(double) = 0;
 
@@ -151,6 +187,8 @@ class BaseHandler : public IHandler
     return set_type_mismatch("uint64_t");
   }
 
+  virtual bool Float(float) override { return set_type_mismatch("float"); }
+
   virtual bool Double(double) override { return set_type_mismatch("double"); }
 
   virtual bool String(const char*, SizeType, bool) override {
@@ -173,7 +211,13 @@ class BaseHandler : public IHandler
     return set_type_mismatch("array");
   }
 
-  virtual bool has_error() const { return !the_error; }
+  virtual bool has_error() const { return bool(the_error); }
+
+  virtual bool reap_error(ErrorStack& errs) {
+    if (!the_error) return false;
+    errs.push(*the_error);
+    return true;
+  }
 
   bool is_parsed() const { return parsed; }
 
@@ -243,6 +287,8 @@ class ObjectHandler : public BaseHandler {
 
   virtual bool Uint64(std::uint64_t) override;
 
+  virtual bool Float(float) override;
+
   virtual bool Double(double) override;
 
   virtual bool String(const char*, SizeType, bool) override;
@@ -257,7 +303,7 @@ class ObjectHandler : public BaseHandler {
 
   virtual bool EndArray(SizeType) override;
 
-  // virtual bool reap_error(ErrorStack&) override;
+  virtual bool reap_error(ErrorStack&) override;
 
   virtual bool write(IHandler* output) const override;
 
@@ -275,6 +321,50 @@ class ObjectHandler : public BaseHandler {
     fh.handler.reset(new Handler<T>(pointer));
     fh.flags = flags_;
     add_handler(std::move(name), std::move(fh));
+  }
+
+  //
+  // Iterate over properties and call callbacks for each property.
+  // TODO(syoyo): Call visit recursively for ObjectType.
+  //
+  bool visit(std::function<bool(std::string, uint32_t flags,
+                                BaseHandler& handler)>& callback, ErrorStack &err_stack) {
+    if (!StartObject()) {
+      return false;
+    }
+
+    for (auto&& pair : internals) {
+      if (pair.second.handler && !(pair.second.flags & Flags::IgnoreRead)) {
+        std::cout << "parse " << pair.first << "\n";
+        bool ret =
+            callback(pair.first, pair.second.flags, *pair.second.handler);
+
+        std::cout << "parse " << pair.second.handler->type_name() << "\n";
+
+        // reap(accumulate) error
+        pair.second.handler->reap_error(err_stack);
+
+        if (!ret) {
+
+          if (pair.second.handler->has_error()) {
+            std::cout << pair.first << " has error. ret = " << ret << "\n";
+          }
+
+          // TODO
+          // Make it ok for optional property
+          if (!(pair.second.flags & Flags::Optional)) {
+            return false;
+          }
+        }
+      }
+    }
+
+    size_t n = internals.size();
+    if (!EndObject(n)) {
+      return false;
+    }
+
+    return true;
   }
 };
 
@@ -369,6 +459,7 @@ class ConversionHandler : public BaseHandler {
     return postprocess(internal.Uint64(u));
   }
 
+  bool Float(float d) override { return postprocess(internal.Float(d)); }
   bool Double(double d) override { return postprocess(internal.Double(d)); }
 
   bool String(const char* str, SizeType size, bool copy) override {
@@ -395,10 +486,9 @@ class ConversionHandler : public BaseHandler {
     return BaseHandler::has_error() || internal.has_error();
   }
 
-  // bool reap_error(ErrorStack& errs) override
-  //{
-  //    return BaseHandler::reap_error(errs) || internal.reap_error(errs);
-  //}
+  bool reap_error(ErrorStack& errs) override {
+    return BaseHandler::reap_error(errs) || internal.reap_error(errs);
+  }
 
   virtual bool write(IHandler* output) const override {
     Converter<T>::to_shadow(*m_value, const_cast<shadow_type&>(shadow));
@@ -416,19 +506,15 @@ namespace helper {
 template <class T, bool no_conversion>
 class DispatchHandler;
 template <class T>
-class DispatchHandler<T, true>
-    : public ::staticstruct::ObjectTypeHandler<T> {
+class DispatchHandler<T, true> : public ::staticstruct::ObjectTypeHandler<T> {
  public:
-  explicit DispatchHandler(T* t)
-      : ::staticstruct::ObjectTypeHandler<T>(t) {}
+  explicit DispatchHandler(T* t) : ::staticstruct::ObjectTypeHandler<T>(t) {}
 };
 
 template <class T>
-class DispatchHandler<T, false>
-    : public ::staticstruct::ConversionHandler<T> {
+class DispatchHandler<T, false> : public ::staticstruct::ConversionHandler<T> {
  public:
-  explicit DispatchHandler(T* t)
-      : ::staticstruct::ConversionHandler<T>(t) {}
+  explicit DispatchHandler(T* t) : ::staticstruct::ConversionHandler<T>(t) {}
 };
 }  // namespace helper
 
@@ -513,6 +599,7 @@ class IntegerHandler : public BaseHandler {
     return receive(i, "std::uint64_t");
   }
 
+  virtual bool Float(float d) override { return receive(d, "float"); }
   virtual bool Double(double d) override { return receive(d, "double"); }
 
   virtual bool write(IHandler* output) const override {
@@ -739,6 +826,12 @@ class Handler<double> : public BaseHandler {
     return true;
   }
 
+  bool Float(float d) override {
+    *m_value = double(d);
+    this->parsed = true;
+    return true;
+  }
+
   bool Double(double d) override {
     *m_value = d;
     this->parsed = true;
@@ -810,6 +903,12 @@ class Handler<float> : public BaseHandler {
     return true;
   }
 
+  bool Float(float d) override {
+    *m_value = d;
+    this->parsed = true;
+    return true;
+  }
+
   bool Double(double d) override {
     *m_value = static_cast<float>(d);
     this->parsed = true;
@@ -818,9 +917,7 @@ class Handler<float> : public BaseHandler {
 
   std::string type_name() const override { return "float"; }
 
-  bool write(IHandler* out) const override {
-    return out->Double(double(*m_value));
-  }
+  bool write(IHandler* out) const override { return out->Float(*m_value); }
 
   // void generate_schema(Value& output, MemoryPoolAllocator& alloc) const
   // override
@@ -944,6 +1041,10 @@ class ArrayHandler : public BaseHandler {
     return precheck("uint64_t") && postcheck(internal.Uint64(i));
   }
 
+  bool Float(float d) override {
+    return precheck("float") && postcheck(internal.Float(d));
+  }
+
   bool Double(double d) override {
     return precheck("double") && postcheck(internal.Double(d));
   }
@@ -983,14 +1084,12 @@ class ArrayHandler : public BaseHandler {
     return true;
   }
 
-  // bool reap_error(ErrorStack& stk) override
-  //{
-  //    if (!the_error)
-  //        return false;
-  //    stk.push(the_error.release());
-  //    internal.reap_error(stk);
-  //    return true;
-  //}
+  bool reap_error(ErrorStack& stk) override {
+    if (!the_error) return false;
+    stk.push(*the_error);
+    internal.reap_error(stk);
+    return true;
+  }
 
   bool write(IHandler* output) const override {
     if (!output->StartArray()) return false;
@@ -1021,6 +1120,63 @@ class Handler<std::vector<T>> : public ArrayHandler<std::vector<T>> {
 
   std::string type_name() const override {
     return "std::vector<" + this->internal.type_name() + ">";
+  }
+};
+
+// specialized version
+template <>
+class Handler<std::vector<float>> : public BaseHandler {
+ protected:
+  std::vector<float>* m_value;
+  int depth{0};
+
+ public:
+  explicit Handler(std::vector<float>* value) : m_value(value) {}
+  ~Handler() override;
+
+  std::string type_name() const override { return "std::vector<float>"; }
+
+  bool Float(float d) override {
+    if (depth == 0) {
+      // `StartArray` is not called.
+      return false;
+    }
+
+    m_value->emplace_back(d);
+
+    return true;
+  }
+
+  bool StartArray() override {
+    ++depth;
+    if (depth > 1) {
+      // recursive array
+      return false;
+    } else {
+      m_value->clear();
+    }
+    return true;
+  }
+
+  bool EndArray(SizeType length) override {
+    (void)length;
+
+    --depth;
+
+    if (depth > 0) return false;
+
+    this->parsed = true;
+    return true;
+  }
+
+  bool write(IHandler* output) const override {
+    if (!output->StartArray()) return false;
+    for (auto&& e : *m_value) {
+      Handler<float> h(&e);
+      if (!h.write(output)) return false;
+    }
+    return output->EndArray(
+        static_cast<staticstruct::SizeType>(m_value->size()));
   }
 };
 
@@ -1131,6 +1287,10 @@ class Handler<std::array<T, N>> : public BaseHandler {
     return precheck("uint64_t") && postcheck(internal.Uint64(i));
   }
 
+  bool Float(float d) override {
+    return precheck("float") && postcheck(internal.Float(d));
+  }
+
   bool Double(double d) override {
     return precheck("double") && postcheck(internal.Double(d));
   }
@@ -1170,14 +1330,12 @@ class Handler<std::array<T, N>> : public BaseHandler {
     return true;
   }
 
-  // bool reap_error(ErrorStack& stk) override
-  //{
-  //    if (!the_error)
-  //        return false;
-  //    stk.push(the_error.release());
-  //    internal.reap_error(stk);
-  //    return true;
-  //}
+  bool reap_error(ErrorStack& stk) override {
+    if (!the_error) return false;
+    stk.push(*the_error);
+    internal.reap_error(stk);
+    return true;
+  }
 
   bool write(IHandler* output) const override {
     if (!output->StartArray()) return false;
@@ -1318,6 +1476,12 @@ public:
     {
         initialize();
         return postcheck(internal_handler->Uint64(i));
+    }
+
+    bool Float(float i) override
+    {
+        initialize();
+        return postcheck(internal_handler->Float(i));
     }
 
     bool Double(double i) override
@@ -1487,6 +1651,10 @@ class MapHandler : public BaseHandler {
     return precheck("uint64_t") && postcheck(internal_handler.Uint64(i));
   }
 
+  bool Float(float d) override {
+    return precheck("float") && postcheck(internal_handler.Float(d));
+  }
+
   bool Double(double d) override {
     return precheck("double") && postcheck(internal_handler.Double(d));
   }
@@ -1527,15 +1695,13 @@ class MapHandler : public BaseHandler {
     return true;
   }
 
-  // bool reap_error(ErrorStack& errs) override
-  //{
-  //    if (!this->the_error)
-  //        return false;
+  bool reap_error(ErrorStack& errs) override {
+    if (!this->the_error) return false;
 
-  //    errs.push(this->the_error.release());
-  //    internal_handler.reap_error(errs);
-  //    return true;
-  //}
+    errs.push((*this->the_error));
+    internal_handler.reap_error(errs);
+    return true;
+  }
 
   bool write(IHandler* out) const override {
     if (!out->StartObject()) return false;
@@ -1692,6 +1858,13 @@ public:
         return postcheck(handlers[index]->Uint64(i));
     }
 
+    bool Float(float d) override
+    {
+        if (index >= N)
+            return true;
+        return postcheck(handlers[index]->Float(d));
+    }
+
     bool Double(double d) override
     {
         if (index >= N)
@@ -1755,7 +1928,7 @@ public:
         if (!this->the_error)
             return false;
 
-        errs.push(this->the_error.release());
+        errs.push(*this->the_error);
         for (auto&& h : handlers)
             h->reap_error(errs);
         return true;
@@ -1841,22 +2014,22 @@ public:
 };
 #endif
 
-class Parse {
- public:
-  bool SetValue(bool, BaseHandler& handler) const;
-  bool SetValue(short, BaseHandler& handler) const;
-  bool SetValue(unsigned short, BaseHandler& handler) const;
-  bool SetValue(int, BaseHandler& handler) const;
-  bool SetValue(unsigned int, BaseHandler& handler) const;
-  bool SetValue(int64_t, BaseHandler& handler) const;
-  bool SetValue(uint64_t, BaseHandler& handler) const;
-  bool SetValue(float f, BaseHandler& handler) const;
-  bool SetValue(double f, BaseHandler& handler) const;
-  bool SetValue(char, BaseHandler& handler) const;
-  bool SetValue(const std::string& s, BaseHandler& handler) const;
+struct ParseUtil {
+  static bool SetValue(bool, BaseHandler& handler);
+  static bool SetValue(short, BaseHandler& handler);
+  static bool SetValue(unsigned short, BaseHandler& handler);
+  static bool SetValue(int, BaseHandler& handler);
+  static bool SetValue(unsigned int, BaseHandler& handler);
+  static bool SetValue(int64_t, BaseHandler& handler);
+  static bool SetValue(uint64_t, BaseHandler& handler);
+  static bool SetValue(float f, BaseHandler& handler);
+  static bool SetValue(double f, BaseHandler& handler);
+  static bool SetValue(char, BaseHandler& handler);
+  static bool SetValue(const std::string& s, BaseHandler& handler);
+  static bool SetValue(const char* s, BaseHandler& handler);
 
-  template <typename T>
-  bool SetValue(const std::vector<T>& v, BaseHandler& handler) const {
+  template <class T>
+  static bool SetValue(const std::vector<T>& v, BaseHandler& handler) {
     if (!handler.StartArray()) {
       return false;
     }
@@ -1870,8 +2043,8 @@ class Parse {
     return handler.EndArray(v.size());
   }
 
-  template <typename T, size_t N>
-  bool SetValue(const std::array<T, N>& v, BaseHandler& handler) const {
+  template <class T, size_t N>
+  static bool SetValue(const std::array<T, N>& v, BaseHandler& handler) {
     if (!handler.StartArray()) {
       return false;
     }
@@ -1885,8 +2058,9 @@ class Parse {
     return handler.EndArray(v.size());
   }
 
-  template <typename T>
-  bool SetValue(const std::map<std::string, T>& m, BaseHandler& handler) const {
+  template <class T>
+  static bool SetValue(const std::map<std::string, T>& m,
+                       BaseHandler& handler) {
     if (!handler.StartObject()) {
       return false;
     }
@@ -1906,8 +2080,8 @@ class Parse {
   }
 
   template <class T, class Hash, class Equal>
-  bool SetValue(const std::unordered_map<std::string, T, Hash, Equal>& m,
-                BaseHandler& handler) const {
+  static bool SetValue(const std::unordered_map<std::string, T, Hash, Equal>& m,
+                       BaseHandler& handler) {
     if (!handler.StartObject()) {
       return false;
     }
@@ -1924,6 +2098,21 @@ class Parse {
 
     return handler.EndObject(m.size());
   }
+};
+
+//
+// Parser interface
+//
+class Reader {
+ public:
+  ///
+  /// @param[in] handler Object(Struct) handler
+  /// @param[in] fn Callback function
+  /// @param[in] err Error message(filled when the function returns false)
+  bool ParseStruct(ObjectHandler* hander,
+                   std::function<bool(std::string, uint32_t flags,
+                                      BaseHandler& handler)>&& fn,
+                   std::string* err);
 };
 
 }  // namespace staticstruct

@@ -1,10 +1,13 @@
 #include "staticstruct.hh"
 
 #include <string>
+#include <cstring>
+#include <iostream> // dbg
 
 namespace staticstruct {
 
 Error* TypeMismatchError(std::string expected_type, std::string actual_type) {
+  printf("type mismatch err\n");
   return new Error(Error::TYPE_MISMATCH,
                    "Type mismatch error: type `" + expected_type +
                        "` expected but got type `" + actual_type + "`");
@@ -50,10 +53,12 @@ bool BaseHandler::set_out_of_range(const char* actual_type) {
 }
 
 bool BaseHandler::set_type_mismatch(const char* actual_type) {
+  std::cout << "set type mismatch : " << this->type_name() << "\n";
   the_error.reset(new Error(Error::TYPE_MISMATCH,
                             "Type mismatch error: type `" + type_name() +
                                 "` expected but got type `" + actual_type +
                                 "`"));
+  std::cout << "the_error = " << !the_error << "\n";
   return false;
 }
 
@@ -95,6 +100,11 @@ void ObjectHandler::set_missing_required(const std::string& name) {
 }
 
 #define POSTCHECK(x) (!current || !(current->handler) || postcheck(x))
+
+bool ObjectHandler::Float(float value) {
+  if (!precheck("float")) return false;
+  return POSTCHECK(current->handler->Float(value));
+}
 
 bool ObjectHandler::Double(double value) {
   if (!precheck("double")) return false;
@@ -221,15 +231,20 @@ void ObjectHandler::add_handler(std::string&& name,
   internals.emplace(std::move(name), std::move(fh));
 }
 
-// bool ObjectHandler::reap_error(ErrorStack& stack)
-//{
-//    if (!the_error)
-//        return false;
-//    stack.push(the_error.release());
-//    if (current && current->handler)
-//        current->handler->reap_error(stack);
-//    return true;
-//}
+ bool ObjectHandler::reap_error(ErrorStack& stack)
+{
+    if (!the_error) {
+        return false;
+    }
+
+    stack.push(*the_error);
+
+    if (current && current->handler) {
+        current->handler->reap_error(stack);
+    }
+
+    return true;
+}
 
 bool ObjectHandler::write(IHandler* output) const {
   SizeType count = 0;
@@ -298,44 +313,83 @@ Handler<double>::~Handler() {}
 Handler<char>::~Handler() {}
 Handler<std::string>::~Handler() {}
 
-bool Parse::SetValue(bool b, BaseHandler& handler) const {
+Handler<std::vector<float>>::~Handler() {}
+
+bool ParseUtil::SetValue(bool b, BaseHandler& handler) {
   return handler.Bool(b);
 }
 
-bool Parse::SetValue(short i, BaseHandler& handler) const {
+bool ParseUtil::SetValue(short i, BaseHandler& handler)  {
   return handler.Short(i);
 }
 
-bool Parse::SetValue(unsigned short i, BaseHandler& handler) const {
+bool ParseUtil::SetValue(unsigned short i, BaseHandler& handler)  {
   return handler.Ushort(i);
 }
 
-bool Parse::SetValue(int i, BaseHandler& handler) const {
+bool ParseUtil::SetValue(int i, BaseHandler& handler)  {
   return handler.Int(i);
 }
 
-bool Parse::SetValue(unsigned int i, BaseHandler& handler) const {
+bool ParseUtil::SetValue(unsigned int i, BaseHandler& handler)  {
   return handler.Uint(i);
 }
 
-bool Parse::SetValue(int64_t i, BaseHandler& handler) const {
+bool ParseUtil::SetValue(int64_t i, BaseHandler& handler)  {
   return handler.Int64(i);
 }
 
-bool Parse::SetValue(uint64_t i, BaseHandler& handler) const {
+bool ParseUtil::SetValue(uint64_t i, BaseHandler& handler)  {
   return handler.Uint64(i);
 }
 
-bool Parse::SetValue(float f, BaseHandler& handler) const {
-  return handler.Double(double(f));
+bool ParseUtil::SetValue(float f, BaseHandler& handler)  {
+  return handler.Float(f);
 }
 
-bool Parse::SetValue(double f, BaseHandler& handler) const {
+bool ParseUtil::SetValue(double f, BaseHandler& handler)  {
   return handler.Double(f);
 }
 
-bool Parse::SetValue(const std::string& s, BaseHandler& handler) const {
+bool ParseUtil::SetValue(const std::string& s, BaseHandler& handler)  {
   return handler.String(s.c_str(), s.size(), /* not used */ false);
+}
+
+bool ParseUtil::SetValue(const char *s, BaseHandler& handler)  {
+  return handler.String(s, strlen(s), /* not used */ false);
+}
+
+// explicit specialization for frequently used data types
+template <>
+bool ParseUtil::SetValue(const std::vector<float>& v, BaseHandler& handler)  {
+  if (!handler.StartArray()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < v.size(); i++) {
+    if (!handler.Float(v[i])) {
+      return false;
+    }
+  }
+
+  return handler.EndArray(v.size());
+}
+
+
+bool Reader::ParseStruct(ObjectHandler *handler, std::function<bool(std::string, uint32_t flags, BaseHandler &handler)> &&fn, std::string *err_msg) {
+
+  ErrorStack err_stack;
+
+  bool ret = handler->visit(fn, err_stack);
+
+  if (err_stack.size() && (err_msg)) {
+    Error err;
+    while (err_stack.pop(&err)) {
+      (*err_msg) += err.error_msg + "\n";
+    }
+  }
+
+  return ret;
 }
 
 }  // namespace staticstruct

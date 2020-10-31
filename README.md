@@ -23,6 +23,48 @@ Work in progres. currently some deserialization features are available.
 
 Simply copy `staticstruct.cc` and `staticstruct.hh` to your project.
 
+## Usage
+
+
+```
+struct MyStruct
+{
+  float f{};
+  std::vector<float> vf;
+};
+
+MyStruct s;
+
+// Register handler.
+staticstruct::ObjectHandler h;
+h.add_property("f", &s.f);
+h.add_property("vf", &s.vf);
+
+// Write parser logic.
+// `ParseStruct` will iterate over registered properties and call the callback function(lambda).
+// Application need to explicitly specify how to set value.
+//
+// You can use `staticstruct::ParseUtil::SetValue` to set value easily.
+//
+staticstruct::Reader r;
+bool ret = r.ParseStruct(&h, [](std::string key, uint32_t flags, staticstruct::BaseHandler &handler) -> bool {
+  if (key == "f") {
+    return staticstruct::ParseUtil::SetValue(1.0f, handler);
+    // or you can do this: return handler.Float(1.0f);
+  } else if (key == "vf") {
+    std::vector<float> data = {1.0f, 2.0f, 3.3f, 4.5f};
+    return staticstruct::ParseUtil::SetValue(data, handler);
+  }
+  std::cerr << "Need to implement how to parse property `" + key + "`\n";
+  return false;
+});
+
+if (!ret) {
+  std::cerr << "failed\n";
+  return -1;
+}
+```
+
 ## Supported basic types
 
 * bool
@@ -42,10 +84,16 @@ Simply copy `staticstruct.cc` and `staticstruct.hh` to your project.
 
 ## TODO
 
+* [ ] Specialize frequently used datatype
+  * [x] `std::vector<float>`
+  * [ ] `std::vector<std::array<float, 3>>` (float3)
+  * [ ] `std::vector<std::array<float, 4>>` (float4)
+  * [ ] `std::vector<std::array<float, 16>>` (matrix4x4)
 * [ ] Better error report.
 * [ ] Refator code.
 * [ ] Implement schema generator.
 * [ ] Serializer.
+* [ ] Unit tests.
 
 ## License
 
