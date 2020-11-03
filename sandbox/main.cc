@@ -33,6 +33,13 @@ class Value
     return true;
   }
 
+  template<typename U, typename std::enable_if<std::is_same<T, U>::value>::type* = nullptr>
+  Value<T> &operator=(const U &u) {
+    m_value = u;
+
+    return (*this);
+  }
+
   std::string type_name() {
     return std::string(Traits<T>::type_name);
   }
@@ -70,6 +77,10 @@ int main(int argc, char **argv)
   std::cout << f.assign(x) << "\n";
   std::cout << f.value() << "\n";
 
+  //float y = 1.2f;
+  int y = 1;
+  f = y;
+  std::cout << f.value() << "\n";
 
   return 0;
 
