@@ -33,6 +33,13 @@ class Value
     return true;
   }
 
+  template<typename U, typename std::enable_if<std::is_same<T, U>::value>::type* = nullptr>
+  Value<T> &operator=(const U &u) {
+    m_value = u;
+
+    return (*this);
+  }
+
   std::string type_name() {
     return std::string(Traits<T>::type_name);
   }
@@ -71,6 +78,13 @@ class ValueHandler
     return true;
   }
 
+  template<typename U, typename std::enable_if<std::is_same<T, U>::value>::type* = nullptr>
+  ValueHandler<T> &operator=(const U &u) {
+    (*m_value) = u;
+
+    return (*this);
+  }
+
   std::string type_name() {
     return std::string(Traits<T>::type_name);
   }
@@ -95,12 +109,22 @@ int main(int argc, char **argv)
   std::cout << f.assign(x) << "\n";
   std::cout << f.value() << "\n";
 
-  float fval;
+
+  float y = 1.2f;
+  //int y = 1;
+  f = y;
+  std::cout << f.value() << "\n";
+
+  float fval{};
   ValueHandler<float> vh_f(&fval);
 
-  vh_f.set(2u);
+  vh_f.set(2u); // false
 
   std::cout << fval << "\n";
+
+  vh_f = 3.2f;
+
+  std::cout << fval << "\n"; // 3.2f
 
   return 0;
 
