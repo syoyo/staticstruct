@@ -51,6 +51,31 @@ class Value<std::vector<T>>
   }
 };
 
+template<class T>
+class ValueHandler
+{
+ private:
+  T *m_value;
+
+ public:
+  ValueHandler(T *ptr) : m_value(ptr) {}
+
+  template<class U>
+  bool set(const U &u) {
+    if (!std::is_same<T, U>::value) {
+      return false;
+    }
+
+    (*m_value) = u;
+
+    return true;
+  }
+
+  std::string type_name() {
+    return std::string(Traits<T>::type_name);
+  }
+};
+
 int main(int argc, char **argv)
 {
   (void)argc;
@@ -70,6 +95,12 @@ int main(int argc, char **argv)
   std::cout << f.assign(x) << "\n";
   std::cout << f.value() << "\n";
 
+  float fval;
+  ValueHandler<float> vh_f(&fval);
+
+  vh_f.set(2u);
+
+  std::cout << fval << "\n";
 
   return 0;
 
