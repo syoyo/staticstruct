@@ -526,8 +526,8 @@ class Handler
   typedef helper::DispatchHandler<
       T, std::is_same<typename Converter<T>::shadow_type, T>::value>
       base_type;
-  // explicit Handler(T* t) : base_type(t) {}
-  explicit Handler(T* t);
+  explicit Handler(T* t) : base_type(t) {}
+  //explicit Handler(T* t);
 };
 
 // ---- primitive types ----

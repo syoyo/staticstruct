@@ -2,6 +2,39 @@
 
 #include <iostream>
 #include <cassert>
+#include <cstring>
+
+// custom types
+struct matrix4
+{
+  float m[4][4];
+};
+
+namespace staticstruct
+{
+template <>
+struct Converter<matrix4>
+{
+    // Raw float[4][4] is not assignable, so use flattened 1D std::array.
+    typedef std::array<float, 16> shadow_type;
+    // This typedef is a must. The shadow type is a C++ type
+    // that can be directly converted to and from JSON values.
+
+    static_assert(sizeof(shadow_type) == sizeof(float) * 4 * 4, "sizeof mismatch");
+
+    static std::unique_ptr<Error> from_shadow(const shadow_type& shadow, matrix4& value)
+    {
+        memcpy(value.m, &shadow[0], sizeof(float) * 4 * 4);
+
+        return nullptr; // success
+    }
+
+    static void to_shadow(const matrix4& value, shadow_type& shadow)
+    {
+        memcpy(&shadow[0], value.m, sizeof(shadow_type));
+    }
+};
+}
 
 struct MyStruct
 {
@@ -10,6 +43,7 @@ struct MyStruct
   std::vector<std::array<float, 3>> vf3;
   std::string name;
   std::string uuid;
+  matrix4 mtx;
 };
 
 int main(int argc, char **argv)
@@ -27,6 +61,7 @@ int main(int argc, char **argv)
     h.add_property("name", &s.name);
     h.add_property("uuid", &s.uuid, staticstruct::Flags::Optional);
     h.add_property("vf3", &s.vf3, staticstruct::Flags::Optional);
+    h.add_property("mtx", &s.mtx, staticstruct::Flags::Optional);
 
     // Write parser logic.
     // `ParseStruct` will iterate over registered properties and call the callback function(lambda).
@@ -47,6 +82,32 @@ int main(int argc, char **argv)
       } else if (key == "vf3") {
         std::vector<std::array<float, 3>> data = {{1.0f, 2.0f, 3.3f}, {4.5f, 6.3f, 7.4f}};
         return staticstruct::ParseUtil::SetValue(data, handler);
+      } else if (key == "mtx") {
+        matrix4 m;
+
+        m.m[0][0] = 1.0;
+        m.m[0][1] = 0.0;
+        m.m[0][2] = 0.0;
+        m.m[0][3] = 0.0;
+
+        m.m[1][0] = 0.0;
+        m.m[1][1] = 1.0;
+        m.m[1][2] = 0.0;
+        m.m[1][3] = 0.0;
+
+        m.m[2][0] = 0.0;
+        m.m[2][1] = 0.0;
+        m.m[2][2] = 1.0;
+        m.m[2][3] = 0.0;
+
+        m.m[3][0] = 0.0;
+        m.m[3][1] = 0.0;
+        m.m[3][2] = 0.0;
+        m.m[3][3] = 1.0;
+
+        staticstruct::Handler<matrix4> h(&m);
+
+        return h.write(&handler);
       }
 
       if (flags & staticstruct::Flags::Optional) {
@@ -71,6 +132,12 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < s.vf3.size(); i++) {
       std::cout << "MyStruct.vf3[" << i << "] = " << s.vf3[i][0] << ", " << s.vf3[i][1] << ", " << s.vf3[i][2] << "\n";
     }
+
+    std::cout << "MyStruct.mtx = [[" << s.mtx.m[0][0] << ", " << s.mtx.m[0][1] << ", " << s.mtx.m[0][2] << ", " << s.mtx.m[0][3] << "]\n";
+    std::cout <<  " [" << s.mtx.m[1][0] << ", " << s.mtx.m[1][1] << ", " << s.mtx.m[1][2] << ", " << s.mtx.m[1][3] << "]\n";
+    std::cout <<  " [" << s.mtx.m[2][0] << ", " << s.mtx.m[2][1] << ", " << s.mtx.m[2][2] << ", " << s.mtx.m[2][3] << "]\n";
+    std::cout <<  " [" << s.mtx.m[3][0] << ", " << s.mtx.m[3][1] << ", " << s.mtx.m[3][2] << ", " << s.mtx.m[3][3] << "]]\n";
+
   }
 
   // Example code which results in type mismatch

@@ -1,8 +1,8 @@
 #include "staticstruct.hh"
 
-#include <string>
 #include <cstring>
-#include <iostream> // dbg
+#include <iostream>  // dbg
+#include <string>
 
 namespace staticstruct {
 
@@ -231,19 +231,18 @@ void ObjectHandler::add_handler(std::string&& name,
   internals.emplace(std::move(name), std::move(fh));
 }
 
- bool ObjectHandler::reap_error(ErrorStack& stack)
-{
-    if (!the_error) {
-        return false;
-    }
+bool ObjectHandler::reap_error(ErrorStack& stack) {
+  if (!the_error) {
+    return false;
+  }
 
-    stack.push(*the_error);
+  stack.push(*the_error);
 
-    if (current && current->handler) {
-        current->handler->reap_error(stack);
-    }
+  if (current && current->handler) {
+    current->handler->reap_error(stack);
+  }
 
-    return true;
+  return true;
 }
 
 bool ObjectHandler::write(IHandler* output) const {
@@ -319,49 +318,47 @@ bool ParseUtil::SetValue(bool b, BaseHandler& handler) {
   return handler.Bool(b);
 }
 
-bool ParseUtil::SetValue(short i, BaseHandler& handler)  {
+bool ParseUtil::SetValue(short i, BaseHandler& handler) {
   return handler.Short(i);
 }
 
-bool ParseUtil::SetValue(unsigned short i, BaseHandler& handler)  {
+bool ParseUtil::SetValue(unsigned short i, BaseHandler& handler) {
   return handler.Ushort(i);
 }
 
-bool ParseUtil::SetValue(int i, BaseHandler& handler)  {
-  return handler.Int(i);
-}
+bool ParseUtil::SetValue(int i, BaseHandler& handler) { return handler.Int(i); }
 
-bool ParseUtil::SetValue(unsigned int i, BaseHandler& handler)  {
+bool ParseUtil::SetValue(unsigned int i, BaseHandler& handler) {
   return handler.Uint(i);
 }
 
-bool ParseUtil::SetValue(int64_t i, BaseHandler& handler)  {
+bool ParseUtil::SetValue(int64_t i, BaseHandler& handler) {
   return handler.Int64(i);
 }
 
-bool ParseUtil::SetValue(uint64_t i, BaseHandler& handler)  {
+bool ParseUtil::SetValue(uint64_t i, BaseHandler& handler) {
   return handler.Uint64(i);
 }
 
-bool ParseUtil::SetValue(float f, BaseHandler& handler)  {
+bool ParseUtil::SetValue(float f, BaseHandler& handler) {
   return handler.Float(f);
 }
 
-bool ParseUtil::SetValue(double f, BaseHandler& handler)  {
+bool ParseUtil::SetValue(double f, BaseHandler& handler) {
   return handler.Double(f);
 }
 
-bool ParseUtil::SetValue(const std::string& s, BaseHandler& handler)  {
+bool ParseUtil::SetValue(const std::string& s, BaseHandler& handler) {
   return handler.String(s.c_str(), s.size(), /* not used */ false);
 }
 
-bool ParseUtil::SetValue(const char *s, BaseHandler& handler)  {
+bool ParseUtil::SetValue(const char* s, BaseHandler& handler) {
   return handler.String(s, strlen(s), /* not used */ false);
 }
 
 // explicit specialization for frequently used data types
 template <>
-bool ParseUtil::SetValue(const std::vector<float>& v, BaseHandler& handler)  {
+bool ParseUtil::SetValue(const std::vector<float>& v, BaseHandler& handler) {
   if (!handler.StartArray()) {
     return false;
   }
@@ -375,9 +372,10 @@ bool ParseUtil::SetValue(const std::vector<float>& v, BaseHandler& handler)  {
   return handler.EndArray(v.size());
 }
 
-
-bool Reader::ParseStruct(ObjectHandler *handler, std::function<bool(std::string, uint32_t flags, BaseHandler &handler)> &&fn, std::string *err_msg) {
-
+bool Reader::ParseStruct(
+    ObjectHandler* handler,
+    std::function<bool(std::string, uint32_t flags, BaseHandler& handler)>&& fn,
+    std::string* err_msg) {
   ErrorStack err_stack;
 
   bool ret = handler->visit(fn, err_stack);
