@@ -15,10 +15,10 @@
 
 #include <cmath>
 #include <functional>
+#include <iostream>  // dbg
 #include <limits>
 #include <memory>
 #include <stack>
-#include <iostream> // dbg
 
 //
 // STL types
@@ -328,7 +328,8 @@ class ObjectHandler : public BaseHandler {
   // TODO(syoyo): Call visit recursively for ObjectType.
   //
   bool visit(std::function<bool(std::string, uint32_t flags,
-                                BaseHandler& handler)>& callback, ErrorStack &err_stack) {
+                                BaseHandler& handler)>& callback,
+             ErrorStack& err_stack) {
     if (!StartObject()) {
       return false;
     }
@@ -345,7 +346,6 @@ class ObjectHandler : public BaseHandler {
         pair.second.handler->reap_error(err_stack);
 
         if (!ret) {
-
           if (pair.second.handler->has_error()) {
             std::cout << pair.first << " has error. ret = " << ret << "\n";
           }
@@ -527,7 +527,7 @@ class Handler
       T, std::is_same<typename Converter<T>::shadow_type, T>::value>
       base_type;
   explicit Handler(T* t) : base_type(t) {}
-  //explicit Handler(T* t);
+  // explicit Handler(T* t);
 };
 
 // ---- primitive types ----
