@@ -61,14 +61,16 @@ int main(int argc, char **argv)
     h.add_property("name", &s.name);
     h.add_property("uuid", &s.uuid, staticstruct::Flags::Optional);
     h.add_property("vf3", &s.vf3, staticstruct::Flags::Optional);
-    h.add_property("mtx", &s.mtx, staticstruct::Flags::Optional);
+
+    constexpr uint32_t matrix_type_id = 1234;
+    h.add_property("mtx", &s.mtx, staticstruct::Flags::Optional, matrix_type_id);
 
     // Write parser logic.
     // `ParseStruct` will iterate over registered properties and call the callback function(lambda).
     // Application need to explicitly specify how to set value.
     staticstruct::Reader r;
     std::string err;
-    bool ret = r.ParseStruct(&h, [](std::string key, uint32_t flags, staticstruct::BaseHandler &handler) -> bool {
+    bool ret = r.ParseStruct(&h, [](std::string key, uint32_t flags, uint32_t user_type_id, staticstruct::BaseHandler &handler) -> bool {
       (void)flags;
 
       if (key == "f") {
@@ -106,6 +108,9 @@ int main(int argc, char **argv)
         m.m[3][3] = 1.0;
 
         staticstruct::Handler<matrix4> h(&m);
+
+        std::cout << "type_name = " << handler.type_name() << "\n";
+        std::cout << "user_type_id = " << user_type_id << "\n";
 
         return h.write(&handler);
       }
@@ -148,8 +153,9 @@ int main(int argc, char **argv)
 
     staticstruct::Reader r;
     std::string err;
-    bool ret = r.ParseStruct(&h, [](std::string key, uint32_t flags, staticstruct::BaseHandler &handler) -> bool {
+    bool ret = r.ParseStruct(&h, [](std::string key, uint32_t flags, uint32_t user_type_id, staticstruct::BaseHandler &handler) -> bool {
       (void)flags;
+      (void)user_type_id;
 
       if (key == "f") {
         // float expected but provide `const char *`. Will return false.
