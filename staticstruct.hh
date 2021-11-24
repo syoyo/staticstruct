@@ -324,7 +324,7 @@ class ObjectHandler : public BaseHandler {
     FlaggedHandler fh;
     fh.handler.reset(new Handler<T>(pointer));
     fh.flags = flags_;
-    fh.type_id_ = type_id_;
+    fh.type_id_ = type_id__;
     add_handler(std::move(name), std::move(fh));
   }
 
