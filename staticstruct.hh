@@ -320,7 +320,7 @@ class ObjectHandler : public BaseHandler {
 
   template <class T>
   void add_property(std::string name, T* pointer,
-                    unsigned flags_ = Flags::Default, uint32_t type_id_ = 0) {
+                    unsigned flags_ = Flags::Default, uint32_t type_id__ = 0) {
     FlaggedHandler fh;
     fh.handler.reset(new Handler<T>(pointer));
     fh.flags = flags_;
