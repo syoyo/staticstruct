@@ -43,6 +43,7 @@ struct MyStruct
   std::vector<std::array<float, 3>> vf3;
   std::string name;
   std::string uuid;
+  std::tuple<float, float> tff;
   matrix4 mtx;
 };
 
@@ -61,6 +62,7 @@ int main(int argc, char **argv)
     h.add_property("name", &s.name);
     h.add_property("uuid", &s.uuid, staticstruct::Flags::Optional);
     h.add_property("vf3", &s.vf3, staticstruct::Flags::Optional);
+    h.add_property("tff", &s.tff, staticstruct::Flags::Optional);
 
     constexpr uint32_t matrix_type_id = 1234;
     h.add_property("mtx", &s.mtx, staticstruct::Flags::Optional, matrix_type_id);
@@ -83,6 +85,9 @@ int main(int argc, char **argv)
         return staticstruct::ParseUtil::SetValue("muda", handler);
       } else if (key == "vf3") {
         std::vector<std::array<float, 3>> data = {{1.0f, 2.0f, 3.3f}, {4.5f, 6.3f, 7.4f}};
+        return staticstruct::ParseUtil::SetValue(data, handler);
+      } else if (key == "tff") {
+        std::tuple<float, float> data = {1.2f, 3.1f};
         return staticstruct::ParseUtil::SetValue(data, handler);
       } else if (key == "mtx") {
         matrix4 m;
@@ -137,6 +142,7 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < s.vf3.size(); i++) {
       std::cout << "MyStruct.vf3[" << i << "] = " << s.vf3[i][0] << ", " << s.vf3[i][1] << ", " << s.vf3[i][2] << "\n";
     }
+    std::cout << "MyStruct.tff = (" << std::get<0>(s.tff) << ", " << std::get<1>(s.tff) << ")\n";
 
     std::cout << "MyStruct.mtx = [[" << s.mtx.m[0][0] << ", " << s.mtx.m[0][1] << ", " << s.mtx.m[0][2] << ", " << s.mtx.m[0][3] << "]\n";
     std::cout <<  " [" << s.mtx.m[1][0] << ", " << s.mtx.m[1][1] << ", " << s.mtx.m[1][2] << ", " << s.mtx.m[1][3] << "]\n";

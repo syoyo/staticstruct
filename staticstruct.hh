@@ -1789,7 +1789,6 @@ class Handler<std::multimap<std::string, T, Hash, Equal>>
   }
 };
 
-#if 0
 template <std::size_t N>
 class TupleHander : public BaseHandler
 {
@@ -1802,7 +1801,7 @@ protected:
     {
         if (!success)
         {
-            the_error.reset(new error::ArrayElementError(index));
+            the_error.reset(ArrayElementError(index));
             return false;
         }
         if (handlers[index]->is_parsed())
@@ -2018,7 +2017,211 @@ public:
         return str;
     }
 };
-#endif
+
+class PairHander : public BaseHandler
+{
+protected:
+    std::array<std::unique_ptr<BaseHandler>, 2> handlers;
+    std::size_t index = 0;
+    int depth = 0;
+
+    bool postcheck(bool success)
+    {
+        if (!success)
+        {
+            the_error.reset(ArrayElementError(index));
+            return false;
+        }
+        if (handlers[index]->is_parsed())
+        {
+            ++index;
+        }
+        return true;
+    }
+
+protected:
+    void reset() override
+    {
+        index = 0;
+        depth = 0;
+        for (auto&& h : handlers)
+            h->prepare_for_reuse();
+    }
+
+public:
+    bool Null() override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Null());
+    }
+
+    bool Bool(bool b) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Bool(b));
+    }
+
+    bool Int(int i) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Int(i));
+    }
+
+    bool Uint(unsigned i) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Uint(i));
+    }
+
+    bool Int64(std::int64_t i) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Int64(i));
+    }
+
+    bool Uint64(std::uint64_t i) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Uint64(i));
+    }
+
+    bool Float(float d) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Float(d));
+    }
+
+    bool Double(double d) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Double(d));
+    }
+
+    bool String(const char* str, SizeType length, bool copy) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->String(str, length, copy));
+    }
+
+    bool Key(const char* str, SizeType length, bool copy) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->Key(str, length, copy));
+    }
+
+    bool StartArray() override
+    {
+        if (++depth > 1)
+        {
+            if (index >= 2)
+                return true;
+            return postcheck(handlers[index]->StartArray());
+        }
+        return true;
+    }
+
+    bool EndArray(SizeType length) override
+    {
+        if (--depth > 0)
+        {
+            if (index >= 2)
+                return true;
+            return postcheck(handlers[index]->EndArray(length));
+        }
+        this->parsed = true;
+        return true;
+    }
+
+    bool StartObject() override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->StartObject());
+    }
+
+    bool EndObject(SizeType length) override
+    {
+        if (index >= 2)
+            return true;
+        return postcheck(handlers[index]->EndObject(length));
+    }
+
+    bool reap_error(ErrorStack& errs) override
+    {
+        if (!this->the_error)
+            return false;
+
+        errs.push(*this->the_error);
+        for (auto&& h : handlers)
+            h->reap_error(errs);
+        return true;
+    }
+
+    bool write(IHandler* out) const override
+    {
+        if (!out->StartArray())
+            return false;
+        for (auto&& h : handlers)
+        {
+            if (!h->write(out))
+                return false;
+        }
+        return out->EndArray(2);
+    }
+
+    //void generate_schema(Value& output, MemoryPoolAllocator& alloc) const override
+    //{
+    //    output.SetObject();
+    //    output.AddMember(rapidjson::StringRef("type"), rapidjson::StringRef("array"), alloc);
+    //    Value items(rapidjson::kArrayType);
+    //    for (auto&& h : handlers)
+    //    {
+    //        Value item;
+    //        h->generate_schema(item, alloc);
+    //        items.PushBack(item, alloc);
+    //    }
+    //    output.AddMember(rapidjson::StringRef("items"), items, alloc);
+    //}
+};
+
+template <typename T0, typename T1>
+class Handler<std::pair<T0, T1>> : public TupleHander<std::tuple_size<std::tuple<Ts...>>::value>
+{
+private:
+    static const std::size_t N = std::tuple_size<std::tuple<Ts...>>::value;
+
+public:
+    explicit Handler(std::tuple<Ts...>* t)
+    {
+        nonpublic::TupleIniter<0, N, std::tuple<Ts...>> initer;
+        initer(this->handlers.data(), *t);
+    }
+
+    std::string type_name() const override
+    {
+        std::string str = "std::tuple<";
+        for (auto&& h : this->handlers)
+        {
+            str += h->type_name();
+            str += ", ";
+        }
+        str.pop_back();
+        str.pop_back();
+        str += '>';
+        return str;
+    }
+};
+
 
 struct ParseUtil {
   static bool SetValue(bool, BaseHandler& handler);
@@ -2104,6 +2307,13 @@ struct ParseUtil {
 
     return handler.EndObject(m.size());
   }
+
+  template<typename... Ts>
+  static bool SetValue(std::tuple<Ts...>& m, BaseHandler &handler) {
+    Handler<std::tuple<Ts...>> h(&m);
+    return h.write(&handler);
+  }
+
 };
 
 //
