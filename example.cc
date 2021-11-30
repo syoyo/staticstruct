@@ -72,7 +72,7 @@ int main(int argc, char **argv)
     // Application need to explicitly specify how to set value.
     staticstruct::Reader r;
     std::string err;
-    bool ret = r.ParseStruct(&h, [](std::string key, uint32_t flags, uint32_t user_type_id, staticstruct::BaseHandler &handler) -> bool {
+    bool ret = r.ParseStruct(&h, [](const std::string& key, uint32_t flags, uint32_t user_type_id, staticstruct::BaseHandler &handler) -> bool {
       (void)flags;
 
       if (key == "f") {
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
 
     staticstruct::Reader r;
     std::string err;
-    bool ret = r.ParseStruct(&h, [](std::string key, uint32_t flags, uint32_t user_type_id, staticstruct::BaseHandler &handler) -> bool {
+    bool ret = r.ParseStruct(&h, [](const std::string& key, uint32_t flags, uint32_t user_type_id, staticstruct::BaseHandler &handler) -> bool {
       (void)flags;
       (void)user_type_id;
 
