@@ -39,8 +39,8 @@ namespace staticstruct {
 // [ ] std::optional type
 
 struct NonMobile {
-  NonMobile() {}
-  ~NonMobile() {}
+  NonMobile() = default;
+  ~NonMobile() = default;
   NonMobile(const NonMobile&) = delete;
   NonMobile(NonMobile&&) = delete;
   NonMobile& operator=(const NonMobile&) = delete;
@@ -102,7 +102,7 @@ class ErrorStack {
 
 class IHandler {
  public:
-  IHandler() {}
+  IHandler() = default;
 
   virtual ~IHandler();
 

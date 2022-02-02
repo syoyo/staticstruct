@@ -40,10 +40,10 @@ Error* DuplicateKeyError(const std::string& key) {
   return new Error(Error::DUPLICATE_KEYS, "Duplicated key name `" + key + "`");
 }
 
-IHandler::~IHandler() {}
+IHandler::~IHandler() = default;
 
-BaseHandler::BaseHandler() {}
-BaseHandler::~BaseHandler() {}
+BaseHandler::BaseHandler() = default;
+BaseHandler::~BaseHandler() = default;
 
 bool BaseHandler::set_out_of_range(const char* actual_type) {
   the_error.reset(new Error(Error::NUMBER_OUT_OF_RANGE,
@@ -67,9 +67,9 @@ bool BaseHandler::set_type_mismatch(const char* actual_type) {
   return false;
 }
 
-ObjectHandler::ObjectHandler() {}
+ObjectHandler::ObjectHandler() = default;
 
-ObjectHandler::~ObjectHandler() {}
+ObjectHandler::~ObjectHandler() = default;
 
 std::string ObjectHandler::type_name() const { return "object"; }
 
