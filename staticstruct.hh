@@ -29,6 +29,18 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef __EXCEPTIONS
+#define CALL_AND_HANDLE(expr, handle)   \
+  try {                                 \
+    (expr);                             \
+  }                                     \
+  catch (const std::bad_alloc&) {       \
+    (handle);                           \
+  }
+#else
+#define CALL_AND_HANDLE(expr, handle) (expr);
+#endif
+
 // TODO: deque, tuple
 
 namespace staticstruct {

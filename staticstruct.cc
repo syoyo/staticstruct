@@ -8,36 +8,54 @@ namespace staticstruct {
 
 Error* TypeMismatchError(const std::string& expected_type, const std::string& actual_type) {
   printf("type mismatch err\n");
-  return new Error(Error::TYPE_MISMATCH,
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::TYPE_MISMATCH,
                    "Type mismatch error: type `" + expected_type +
-                       "` expected but got type `" + actual_type + "`");
+                       "` expected but got type `" + actual_type + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* RequiredFieldMissingError() {
-  return new Error(Error::TYPE_MISMATCH, "Required field(s) is missing: ");
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::TYPE_MISMATCH, "Required field(s) is missing: "),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* UnknownFieldError(const std::string& field_name) {
-  return new Error(Error::UNKNOWN_FIELD,
-                   "Unknown field with name: `" + field_name + "`");
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::UNKNOWN_FIELD, "Unknown field with name: `" + field_name + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* ArrayLengthMismatchError() {
-  return new Error(Error::ARRAY_LENGTH_MISMATCH, "Array length mismatch");
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::ARRAY_LENGTH_MISMATCH, "Array length mismatch"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* ArrayElementError(size_t idx) {
-  return new Error(Error::ARRAY_ELEMENT,
-                   "Error at array element at index " + std::to_string(idx));
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::ARRAY_ELEMENT, "Error at array element at index " + std::to_string(idx)),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* ObjectMemberError(const std::string& key) {
-  return new Error(Error::OBJECT_MEMBER,
-                   "Error at object member with name `" + key + "`");
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::OBJECT_MEMBER, "Error at object member with name `" + key + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* DuplicateKeyError(const std::string& key) {
-  return new Error(Error::DUPLICATE_KEYS, "Duplicated key name `" + key + "`");
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::DUPLICATE_KEYS, "Duplicated key name `" + key + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 IHandler::~IHandler() = default;
@@ -46,24 +64,20 @@ BaseHandler::BaseHandler() = default;
 BaseHandler::~BaseHandler() = default;
 
 bool BaseHandler::set_out_of_range(const char* actual_type) {
-  the_error.reset(new Error(Error::NUMBER_OUT_OF_RANGE,
+  CALL_AND_HANDLE(the_error.reset(new Error(Error::NUMBER_OUT_OF_RANGE,
                             "Number out-of-range: type `" + type_name() +
-                                "`, actual_type `" + actual_type + "`"));
+                                "`, actual_type `" + actual_type + "`")),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
   return false;
 }
 
 bool BaseHandler::set_type_mismatch(const char* actual_type) {
   std::cout << "set type mismatch : " << this->type_name() << "\n";
-  try {
-    the_error.reset(new Error(Error::TYPE_MISMATCH,
-                              "Type mismatch error: type `" + type_name() +
-                                  "` expected but got type `" + actual_type +
-                                  "`"));
-  }
-  catch (const std::bad_alloc&)
-  {
-    std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n";
-  }
+  CALL_AND_HANDLE(the_error.reset(new Error(Error::TYPE_MISMATCH,
+                            "Type mismatch error: type `" + type_name() +
+                                "` expected but got type `" + actual_type +
+                                "`")),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
   return false;
 }
 
@@ -173,7 +187,8 @@ bool ObjectHandler::String(const char* str, SizeType sz, bool copy) {
 
 bool ObjectHandler::Key(const char* str, SizeType sz, bool copy) {
   if (depth <= 0) {
-    the_error.reset(new Error(Error::CORRUPTED_DOM, "Corrupted DOM"));
+    CALL_AND_HANDLE(the_error.reset(new Error(Error::CORRUPTED_DOM, "Corrupted DOM")),
+                    std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
     return false;
   }
   if (depth == 1) {
