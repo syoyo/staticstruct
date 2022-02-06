@@ -246,9 +246,9 @@ void ObjectHandler::reset() {
   }
 }
 
-void ObjectHandler::add_handler(std::string&& name,
+void ObjectHandler::add_handler(const std::string& name,
                                 ObjectHandler::FlaggedHandler&& fh) {
-  internals.emplace(std::move(name), std::move(fh));
+  internals.emplace(name, std::move(fh));
 }
 
 bool ObjectHandler::reap_error(ErrorStack& stack) {

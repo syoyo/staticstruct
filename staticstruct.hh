@@ -275,7 +275,7 @@ class ObjectHandler : public BaseHandler {
   bool precheck(const std::string& type);
   bool postcheck(bool success);
   void set_missing_required(const std::string& name);
-  void add_handler(std::string&&, FlaggedHandler&&);
+  void add_handler(const std::string&, FlaggedHandler&&);
   void reset() override;
 
  public:
@@ -337,7 +337,7 @@ class ObjectHandler : public BaseHandler {
     fh.handler.reset(new Handler<T>(pointer));
     fh.flags = flags_;
     fh.type_id_ = type_id__;
-    add_handler(std::move(name), std::move(fh));
+    add_handler(name, std::move(fh));
   }
 
   //
