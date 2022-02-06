@@ -29,6 +29,18 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef __EXCEPTIONS
+#define CALL_AND_HANDLE(expr, handle)   \
+  try {                                 \
+    (expr);                             \
+  }                                     \
+  catch (const std::bad_alloc&) {       \
+    (handle);                           \
+  }
+#else
+#define CALL_AND_HANDLE(expr, handle) (expr);
+#endif
+
 // TODO: deque, tuple
 
 namespace staticstruct {
@@ -39,8 +51,8 @@ namespace staticstruct {
 // [ ] std::optional type
 
 struct NonMobile {
-  NonMobile() {}
-  ~NonMobile() {}
+  NonMobile() = default;
+  ~NonMobile() = default;
   NonMobile(const NonMobile&) = delete;
   NonMobile(NonMobile&&) = delete;
   NonMobile& operator=(const NonMobile&) = delete;
@@ -55,21 +67,21 @@ struct Error {
                    MISSING_REQUIRED = 3, TYPE_MISMATCH = 4,
                    NUMBER_OUT_OF_RANGE = 5, ARRAY_LENGTH_MISMATCH = 6,
                    UNKNOWN_FIELD = 7, DUPLICATE_KEYS = 8, CORRUPTED_DOM = 9,
-                   TOO_DEEP_RECURSION = 10, INVALID_ENUM = 11, CUSTOM = -1;
+                   TOO_DEEP_RECURSION = 10, INVALID_ENUM = 11, BAD_ALLOC = 12, CUSTOM = -1;
 
   std::string error_msg;
 
   Error() : error_type(0) {}
-  Error(int ty, std::string msg) : error_type(ty), error_msg(msg) {}
+  Error(int ty, const std::string& msg) : error_type(ty), error_msg(msg) {}
 };
 
-Error* TypeMismatchError(std::string expected_type, std::string actual_type);
+Error* TypeMismatchError(const std::string& expected_type, const std::string& actual_type);
 Error* RequiredFieldMissingError();
-Error* UnknownFieldError(std::string field_name);
+Error* UnknownFieldError(const std::string& field_name);
 Error* ArrayElementError(size_t n);
 Error* ArrayLengthMismatchError();
-Error* ObjectMemberError(std::string key);
-Error* DuplicateKeyError(std::string key);
+Error* ObjectMemberError(const std::string& key);
+Error* DuplicateKeyError(const std::string& key);
 
 class ErrorStack {
  private:
@@ -81,7 +93,7 @@ class ErrorStack {
  public:
   // typedef error::internal::error_stack_const_iterator const_iterator;
 
-  explicit ErrorStack() {}
+  explicit ErrorStack() = default;
 
   void push(Error& e) { m_stack.push(e); }
 
@@ -95,14 +107,14 @@ class ErrorStack {
     }
   }
 
-  ~ErrorStack() {}
+  ~ErrorStack() = default;
 
   size_t size() const { return m_stack.size(); }
 };
 
 class IHandler {
  public:
-  IHandler() {}
+  IHandler() = default;
 
   virtual ~IHandler();
 
@@ -260,10 +272,10 @@ class ObjectHandler : public BaseHandler {
   uint32_t type_id_ = 0; // user supplied type id
 
  protected:
-  bool precheck(const char* type);
+  bool precheck(const std::string& type);
   bool postcheck(bool success);
   void set_missing_required(const std::string& name);
-  void add_handler(std::string&&, FlaggedHandler&&);
+  void add_handler(const std::string&, FlaggedHandler&&);
   void reset() override;
 
  public:
@@ -319,20 +331,20 @@ class ObjectHandler : public BaseHandler {
   void set_type_id(uint32_t idx) { type_id_ = idx; }
 
   template <class T>
-  void add_property(std::string name, T* pointer,
+  void add_property(const std::string& name, T* pointer,
                     unsigned flags_ = Flags::Default, uint32_t type_id__ = 0) {
     FlaggedHandler fh;
     fh.handler.reset(new Handler<T>(pointer));
     fh.flags = flags_;
     fh.type_id_ = type_id__;
-    add_handler(std::move(name), std::move(fh));
+    add_handler(name, std::move(fh));
   }
 
   //
   // Iterate over properties and call callbacks for each property.
   // TODO(syoyo): Call visit recursively for ObjectType.
   //
-  bool visit(std::function<bool(std::string, uint32_t flags, uint32_t user_type_id,
+  bool visit(std::function<bool(const std::string&, uint32_t flags, uint32_t user_type_id,
                                 BaseHandler& handler)>& callback,
              ErrorStack& err_stack) {
     if (!StartObject()) {
@@ -1602,8 +1614,7 @@ class MapHandler : public BaseHandler {
 
   bool precheck(const char* type) {
     if (depth <= 0) {
-      set_type_mismatch(type);
-      return false;
+      return set_type_mismatch(type);
     }
     return true;
   }
@@ -2326,7 +2337,7 @@ class Reader {
   /// @param[in] fn Callback function
   /// @param[in] err Error message(filled when the function returns false)
   bool ParseStruct(ObjectHandler* handler,
-                   std::function<bool(std::string, uint32_t flags, uint32_t user_type_id,
+                   std::function<bool(const std::string&, uint32_t flags, uint32_t user_type_id,
                                       BaseHandler& handler)>&& fn,
                    std::string* err);
 };

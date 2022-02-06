@@ -6,69 +6,88 @@
 
 namespace staticstruct {
 
-Error* TypeMismatchError(std::string expected_type, std::string actual_type) {
+Error* TypeMismatchError(const std::string& expected_type, const std::string& actual_type) {
   printf("type mismatch err\n");
-  return new Error(Error::TYPE_MISMATCH,
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::TYPE_MISMATCH,
                    "Type mismatch error: type `" + expected_type +
-                       "` expected but got type `" + actual_type + "`");
+                       "` expected but got type `" + actual_type + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* RequiredFieldMissingError() {
-  return new Error(Error::TYPE_MISMATCH, "Required field(s) is missing: ");
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::TYPE_MISMATCH, "Required field(s) is missing: "),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
-Error* UnknownFieldError(std::string field_name) {
-  return new Error(Error::UNKNOWN_FIELD,
-                   "Unknown field with name: `" + field_name + "`");
+Error* UnknownFieldError(const std::string& field_name) {
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::UNKNOWN_FIELD, "Unknown field with name: `" + field_name + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* ArrayLengthMismatchError() {
-  return new Error(Error::ARRAY_LENGTH_MISMATCH, "Array length mismatch");
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::ARRAY_LENGTH_MISMATCH, "Array length mismatch"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
 Error* ArrayElementError(size_t idx) {
-  return new Error(Error::ARRAY_ELEMENT,
-                   "Error at array element at index " + std::to_string(idx));
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::ARRAY_ELEMENT, "Error at array element at index " + std::to_string(idx)),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
-Error* ObjectMemberError(std::string key) {
-  return new Error(Error::OBJECT_MEMBER,
-                   "Error at object member with name `" + key + "`");
+Error* ObjectMemberError(const std::string& key) {
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::OBJECT_MEMBER, "Error at object member with name `" + key + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
-Error* DuplicateKeyError(std::string key) {
-  return new Error(Error::DUPLICATE_KEYS, "Duplicated key name `" + key + "`");
+Error* DuplicateKeyError(const std::string& key) {
+  Error* e;
+  CALL_AND_HANDLE(e = new Error(Error::DUPLICATE_KEYS, "Duplicated key name `" + key + "`"),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
+  return e;
 }
 
-IHandler::~IHandler() {}
+IHandler::~IHandler() = default;
 
-BaseHandler::BaseHandler() {}
-BaseHandler::~BaseHandler() {}
+BaseHandler::BaseHandler() = default;
+BaseHandler::~BaseHandler() = default;
 
 bool BaseHandler::set_out_of_range(const char* actual_type) {
-  the_error.reset(new Error(Error::NUMBER_OUT_OF_RANGE,
+  CALL_AND_HANDLE(the_error.reset(new Error(Error::NUMBER_OUT_OF_RANGE,
                             "Number out-of-range: type `" + type_name() +
-                                "`, actual_type `" + actual_type + "`"));
+                                "`, actual_type `" + actual_type + "`")),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
   return false;
 }
 
 bool BaseHandler::set_type_mismatch(const char* actual_type) {
   std::cout << "set type mismatch : " << this->type_name() << "\n";
-  the_error.reset(new Error(Error::TYPE_MISMATCH,
+  CALL_AND_HANDLE(the_error.reset(new Error(Error::TYPE_MISMATCH,
                             "Type mismatch error: type `" + type_name() +
                                 "` expected but got type `" + actual_type +
-                                "`"));
-  std::cout << "the_error = " << !the_error << "\n";
+                                "`")),
+                  std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
   return false;
 }
 
-ObjectHandler::ObjectHandler() {}
+ObjectHandler::ObjectHandler() = default;
 
-ObjectHandler::~ObjectHandler() {}
+ObjectHandler::~ObjectHandler() = default;
 
 std::string ObjectHandler::type_name() const { return "object"; }
 
-bool ObjectHandler::precheck(const char* actual_type) {
+bool ObjectHandler::precheck(const std::string& actual_type) {
   if (depth <= 0) {
     the_error.reset(TypeMismatchError(type_name(), actual_type));
     return false;
@@ -168,7 +187,8 @@ bool ObjectHandler::String(const char* str, SizeType sz, bool copy) {
 
 bool ObjectHandler::Key(const char* str, SizeType sz, bool copy) {
   if (depth <= 0) {
-    the_error.reset(new Error(Error::CORRUPTED_DOM, "Corrupted DOM"));
+    CALL_AND_HANDLE(the_error.reset(new Error(Error::CORRUPTED_DOM, "Corrupted DOM")),
+                    std::cout << "the_error = " << Error::BAD_ALLOC << " : Bad allocation memory" << "\n")
     return false;
   }
   if (depth == 1) {
@@ -226,9 +246,9 @@ void ObjectHandler::reset() {
   }
 }
 
-void ObjectHandler::add_handler(std::string&& name,
+void ObjectHandler::add_handler(const std::string& name,
                                 ObjectHandler::FlaggedHandler&& fh) {
-  internals.emplace(std::move(name), std::move(fh));
+  internals.emplace(name, std::move(fh));
 }
 
 bool ObjectHandler::reap_error(ErrorStack& stack) {
@@ -300,19 +320,19 @@ bool ObjectHandler::write(IHandler* output) const {
 //}
 
 Handler<bool>::Handler(bool* value) : m_value(value) {}
-Handler<bool>::~Handler() {}
-Handler<short>::~Handler() {}
-Handler<unsigned short>::~Handler() {}
-Handler<int>::~Handler() {}
-Handler<unsigned>::~Handler() {}
-Handler<int64_t>::~Handler() {}
-Handler<uint64_t>::~Handler() {}
-Handler<float>::~Handler() {}
-Handler<double>::~Handler() {}
-Handler<char>::~Handler() {}
-Handler<std::string>::~Handler() {}
+Handler<bool>::~Handler()           = default;
+Handler<short>::~Handler()          = default;
+Handler<unsigned short>::~Handler() = default;
+Handler<int>::~Handler()            = default;
+Handler<unsigned>::~Handler()       = default;
+Handler<int64_t>::~Handler()        = default;
+Handler<uint64_t>::~Handler()       = default;
+Handler<float>::~Handler()          = default;
+Handler<double>::~Handler()         = default;
+Handler<char>::~Handler()           = default;
+Handler<std::string>::~Handler()    = default;
 
-Handler<std::vector<float>>::~Handler() {}
+Handler<std::vector<float>>::~Handler() = default;
 
 bool ParseUtil::SetValue(bool b, BaseHandler& handler) {
   return handler.Bool(b);
@@ -374,7 +394,7 @@ bool ParseUtil::SetValue(const std::vector<float>& v, BaseHandler& handler) {
 
 bool Reader::ParseStruct(
     ObjectHandler* handler,
-    std::function<bool(std::string, uint32_t flags, uint32_t user_type_id, BaseHandler& handler)>&& fn,
+    std::function<bool(const std::string&, uint32_t flags, uint32_t user_type_id, BaseHandler& handler)>&& fn,
     std::string* err_msg) {
   ErrorStack err_stack;
 
